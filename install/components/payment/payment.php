@@ -54,9 +54,6 @@ $strResultUrl = CSalePaySystemAction::GetParamValue("RESULT_URL");
 $strRefundUrl = CSalePaySystemAction::GetParamValue("REFUND_URL");
 $strRequestMethod = CSalePaySystemAction::GetParamValue("REQUEST_METHOD");
 
-$arrRequest['STATUS_FAILED'] = $strStatusFailed;
-$arrRequest['STATUS_REVOKED'] = $strStatusRevoked;
-
 $strSuccessUrl = CSalePaySystemAction::GetParamValue("SUCCESS_URL");
 $strSuccessUrlMethod = CSalePaySystemAction::GetParamValue("SUCCESS_URL_METHOD");
 
@@ -143,6 +140,7 @@ if($bTestingMode)
 $arrRequest['STATUS_FAILED'] = $strStatusFailed;
 $arrRequest['STATUS_REVOKED'] = $strStatusRevoked;
 
+$arrRequest['pg_encoding'] = 'UTF-8';
 /*
  * Platron Request
  */
