@@ -140,11 +140,11 @@ if($bTestingMode)
 $arrRequest['STATUS_FAILED'] = $strStatusFailed;
 $arrRequest['STATUS_REVOKED'] = $strStatusRevoked;
 
-$arrRequest['pg_encoding'] = 'UTF-8';
+$arrRequest['pg_encoding'] = LANG_CHARSET;
 /*
  * Platron Request
  */
-$arrRequest['cms_payment_module'] = 'BITRIX_UTF8';
+$arrRequest['cms_payment_module'] = 'BITRIX_'.LANG_CHARSET;
 $arrRequest['pg_sig'] = PlatronSignature::make('payment.php', $arrRequest, $strSecretKey);
 
 print "<form name=\"payment\" method='".$strRequestMethod."' action='https://platron.ru/payment.php'";

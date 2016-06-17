@@ -43,7 +43,7 @@ class PlatronIO {
 
 		header("Content-Type: text/xml");
 		header("Pragma: no-cache");
-		$strResponse = "<"."?xml version=\"1.0\" encoding=\"utf-8\"?".">\n";
+		$strResponse = "<"."?xml version=\"1.0\" encoding=\"".LANG_CHARSET."\"?".">\n";
 		$strResponse .= "<response>";
 			$strResponse .= "<pg_salt>".$arrResponse['pg_salt']."</pg_salt>";
 			$strResponse .= "<pg_status>".$arrResponse['pg_status']."</pg_status>";
