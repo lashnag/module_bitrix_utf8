@@ -145,15 +145,15 @@ $arrRequest['pg_encoding'] = LANG_CHARSET;
  * Platron Request
  */
 $arrRequest['cms_payment_module'] = 'BITRIX_'.LANG_CHARSET;
-$arrRequest['pg_sig'] = PlatronSignature::make('payment.php', $arrRequest, $strSecretKey);
+$arrRequest['pg_sig'] = PlatronSignature::make('init_payment.php', $arrRequest, $strSecretKey);
 
-print "<form name=\"payment\" method='".$strRequestMethod."' action='https://platron.ru/payment.php'";
-foreach($arrRequest as $key => $value) {
-	print "<label for=''>				<input type='hidden' name='".$key."' value='".$value."' />			</label>";
+$initPaymentUrl = 'https://www.platron.ru/init_payment.php';
+$requestUrl = $initPaymentUrl . '?' . http_build_query($arrRequest);
+$response = file_get_contents($requestUrl);
+$responseElement = new SimpleXMLElement($response);
+if ($responseElement->pg_status != 'ok') {
+	// TODO handle error
 }
 
-print "<input type=\"submit\"></form>";
-?>
-<script>
-	document.payment.submit();
-</script>
+LocalRedirect($responseElement->pg_redirect_url, true);
+exit;
