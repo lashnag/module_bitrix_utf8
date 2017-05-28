@@ -86,8 +86,17 @@ $arrRequest['pg_amount']      = $nAmount;
 
 $basketList = CSaleBasket::GetList(array(), array("ORDER_ID" => $nOrderId));
 $arrItems = array();
+$ofdReceiptItems = array();
 while ($arrItem = $basketList->Fetch()) {
-   $arrItems[] = $arrItem['NAME'].', ';
+	$arrItems[] = $arrItem['NAME'].', ';
+
+	$ofdReceiptItem = new OfdReceiptItem();
+	$ofdReceiptItem->label = $arrItem['NAME'];
+	$ofdReceiptItem->amount = $arrItem['PRICE'] * $arrItem['QUANTITY'];
+	$ofdReceiptItem->price = $arrItem['PRICE'];
+	$ofdReceiptItem->quantity = $arrItem['QUANTITY'];
+	$ofdReceiptItem->vat = '';
+	$ofdReceiptItems[] = $ofdReceiptItem;
 }
 $arrRequest['pg_description'] = 'Order ID: '.$nOrderId;
 $arrRequest['pg_user_phone'] = $strCustomerPhone;
@@ -154,6 +163,15 @@ $responseElement = new SimpleXMLElement($response);
 if ($responseElement->pg_status != 'ok') {
 	// TODO handle error
 }
+
+$paymentId = $responseElement->pg_payment_id;
+
+$ofdReceiptRequest = new OfdReceiptRequest($nMerchantId, $paymentId);
+$ofdReceiptRequest->items = $ofdReceiptItems;
+$ofdReceiptRequest->sign($strSecretKey);
+
+var_dump($ofdReceiptRequest->makeXml(), $basketList);
+exit;
 
 LocalRedirect($responseElement->pg_redirect_url, true);
 exit;
