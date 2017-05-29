@@ -95,7 +95,7 @@ while ($arrItem = $basketList->Fetch()) {
 	$ofdReceiptItem->amount = $arrItem['PRICE'] * $arrItem['QUANTITY'];
 	$ofdReceiptItem->price = $arrItem['PRICE'];
 	$ofdReceiptItem->quantity = $arrItem['QUANTITY'];
-	$ofdReceiptItem->vat = '';
+	$ofdReceiptItem->vat = CSalePaySystemAction::GetParamValue("OFD_VAT");
 	$ofdReceiptItems[] = $ofdReceiptItem;
 }
 $arrRequest['pg_description'] = 'Order ID: '.$nOrderId;
@@ -164,13 +164,19 @@ if ($responseElement->pg_status != 'ok') {
 	// TODO handle error
 }
 
-$paymentId = $responseElement->pg_payment_id;
+if (CSalePaySystemAction::GetParamValue("OFD_SEND_RECEIPT") == 'Y') {
 
-$ofdReceiptRequest = new OfdReceiptRequest($nMerchantId, $paymentId);
-$ofdReceiptRequest->items = $ofdReceiptItems;
-$ofdReceiptRequest->sign($strSecretKey);
+	$paymentId = $responseElement->pg_payment_id;
 
-var_dump($ofdReceiptRequest->makeXml(), $basketList);
+	$ofdReceiptRequest = new OfdReceiptRequest($nMerchantId, $paymentId);
+	$ofdReceiptRequest->items = $ofdReceiptItems;
+	$ofdReceiptRequest->sign($strSecretKey);
+
+	// TODO need send request to platron
+	var_dump($ofdReceiptRequest->makeXml(), $basketList);
+	exit;
+
+}
 exit;
 
 LocalRedirect($responseElement->pg_redirect_url, true);
