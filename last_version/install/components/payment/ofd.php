@@ -11,7 +11,7 @@ class OfdReceiptRequest
 	public $paymentId;
 	public $items = array();
 
-	private $params = array();
+	private $xml;
 
 	public function __construct($merchantId, $paymentId)
 	{
@@ -19,12 +19,21 @@ class OfdReceiptRequest
 		$this->paymentId = $paymentId;
 	}
 
+	public function prepare()
+	{
+		$this->xml = $this->makeXmlObject();
+	}
+
 	public function sign($secretKey)
 	{
-		$params = $this->toArray();
-		$params['pg_salt'] = 'salt';
-		$params['pg_sig'] = PlatronSignature::make(self::SCRIPT_NAME, $params, $secretKey);
-		$this->params = $params;
+		$salt = md5((string) time());
+		$this->xml->addChild('pg_salt', $salt);
+		$this->xml->addChild('pg_sig', PlatronSignature::makeXml(self::SCRIPT_NAME, $this->xml, $secretKey));
+	}
+
+	public function asXml()
+	{
+		return $this->xml->asXML();
 	}
 
 	public function toArray()
@@ -42,12 +51,12 @@ class OfdReceiptRequest
 		return $result;
 	}
 
-	public function makeXml()
+	private function makeXmlObject()
 	{
 		//var_dump($this->params);
 		$xmlElement = new SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><request></request>');
 
-		foreach ($this->params as $paramName => $paramValue) {
+		foreach ($this->toArray() as $paramName => $paramValue) {
 			if ($paramName == 'pg_items') {
 				//$itemsElement = $xmlElement->addChild($paramName);
 				foreach ($paramValue as $itemParams) {
@@ -62,7 +71,7 @@ class OfdReceiptRequest
 			$xmlElement->addChild($paramName, $paramValue);
 		}
 
-		return $xmlElement->asXML();
+		return $xmlElement;
 	}
 }
 

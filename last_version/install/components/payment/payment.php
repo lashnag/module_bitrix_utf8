@@ -89,20 +89,29 @@ $arrItems = array();
 $ofdReceiptItems = array();
 while ($arrItem = $basketList->Fetch()) {
 	$arrItems[] = $arrItem['NAME'].', ';
-
+	
 	$ofdReceiptItem = new OfdReceiptItem();
 	$ofdReceiptItem->label = $arrItem['NAME'];
 	$ofdReceiptItem->amount = $arrItem['PRICE'] * $arrItem['QUANTITY'];
-	$ofdReceiptItem->price = $arrItem['PRICE'];
+	$ofdReceiptItem->price = $arrItem['BASE_PRICE'];
 	$ofdReceiptItem->quantity = $arrItem['QUANTITY'];
 	$ofdReceiptItem->vat = CSalePaySystemAction::GetParamValue("OFD_VAT");
+	$ofdReceiptItems[] = $ofdReceiptItem;
+}
+if ($arrOrder['PRICE_DELIVERY'] > 0) {
+	$ofdReceiptItem = new OfdReceiptItem();
+	$ofdReceiptItem->label = 'Доставка';
+	$ofdReceiptItem->amount = $arrOrder['PRICE_DELIVERY'];
+	$ofdReceiptItem->price = $arrOrder['PRICE_DELIVERY'];
+	$ofdReceiptItem->quantity = 1;
+	$ofdReceiptItem->vat = 18;
 	$ofdReceiptItems[] = $ofdReceiptItem;
 }
 $arrRequest['pg_description'] = 'Order ID: '.$nOrderId;
 $arrRequest['pg_user_phone'] = $strCustomerPhone;
 $arrRequest['pg_user_contact_email'] = $strCustomerEmail;
 $arrRequest['pg_user_email'] = $strCustomerEmail;
-$arrRequest['pg_user_ip'] = $_SERVER['REMOTE_ADDR'];
+//$arrRequest['pg_user_ip'] = $_SERVER['REMOTE_ADDR'];
 
 
 if(!empty($strSiteUrl))
@@ -161,7 +170,7 @@ $requestUrl = $initPaymentUrl . '?' . http_build_query($arrRequest);
 $response = file_get_contents($requestUrl);
 $responseElement = new SimpleXMLElement($response);
 if ($responseElement->pg_status != 'ok') {
-	// TODO handle error
+	throw new Exception('Error while create platron transaction: ' . $responseElement->pg_error_description);
 }
 
 if (CSalePaySystemAction::GetParamValue("OFD_SEND_RECEIPT") == 'Y') {
@@ -170,14 +179,21 @@ if (CSalePaySystemAction::GetParamValue("OFD_SEND_RECEIPT") == 'Y') {
 
 	$ofdReceiptRequest = new OfdReceiptRequest($nMerchantId, $paymentId);
 	$ofdReceiptRequest->items = $ofdReceiptItems;
+	$ofdReceiptRequest->prepare();
 	$ofdReceiptRequest->sign($strSecretKey);
 
-	// TODO need send request to platron
-	var_dump($ofdReceiptRequest->makeXml(), $basketList);
-	exit;
+	$http = new \Bitrix\Main\Web\HttpClient();
+	$http->post('https://www.platron.ru/receipt.php', array('pg_xml'=>$ofdReceiptRequest->asXml()));
+	if ($http->getStatus() !== 200) {
+		throw new Exception('Bad http status from request to https://www.platron.ru/receipt.php: ' . $http->getStatus());
+	}
+
+	$ofdReceiptResponse = new SimpleXMLElement($http->getResult());
+	if ($ofdReceiptResponse->pg_status != 'ok') {
+		throw new Exception('Error while create platron receipt: ' . $ofdReceiptResponse->pg_error_description);
+	}
 
 }
-exit;
 
 LocalRedirect($responseElement->pg_redirect_url, true);
 exit;
