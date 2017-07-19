@@ -1,6 +1,38 @@
 <?php
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 
+function doApiRequest($scriptName, $params, $secretKey) {
+	$response = QueryGetData(
+		'www.platron.ru',
+		80,
+		'/' . $scriptName,
+		http_build_query($params),
+		$errorNumber,
+		$errorText,
+		'POST'
+	);
+
+	if (!$response) {
+		throw new Exception('Error while request to ' . $scriptName . ': ' . $errorNumber . ', ' . $errorText);
+	}
+
+	try {
+		$responseXml = new SimpleXMLElement($response);
+	} catch (Exception $e) {
+		throw new Exception('Error response from ' . $scriptName . ': ' . $e->getMessage());
+	}
+
+	if (!PlatronSignature::checkXml($scriptName, $responseXml, $secretKey)) {
+		throw new Exception('Error response from ' . $scriptName . ': invalid response signature');
+	}
+
+	if ($responseXml->pg_status != 'ok') {
+		throw new Exception('Error response from ' . $scriptName . ': ' . $responseXml->pg_error_description);
+	}
+
+	return $responseXml;
+}
+
 include(GetLangFileName(dirname(__FILE__)."/", "/payment.php"));
 
 CModule::IncludeModule("sale");
@@ -91,7 +123,11 @@ while ($arrItem = $basketList->Fetch()) {
 	$arrItems[] = $arrItem['NAME'].', ';
 	
 	$ofdReceiptItem = new OfdReceiptItem();
-	$ofdReceiptItem->label = $arrItem['NAME'];
+	if (toUpper(LANG_CHARSET) == "WINDOWS-1251") {
+		$ofdReceiptItem->label = iconv('cp1251', 'utf-8', $arrItem['NAME']);
+	} else {
+		$ofdReceiptItem->label = $arrItem['NAME'];
+	}
 	$ofdReceiptItem->label = mb_substr($ofdReceiptItem->label, 0, 128);
 	$ofdReceiptItem->price = round($arrItem['PRICE'], 2);
 	$ofdReceiptItem->quantity = round($arrItem['QUANTITY'], 3);
@@ -100,7 +136,11 @@ while ($arrItem = $basketList->Fetch()) {
 }
 if ($arrOrder['PRICE_DELIVERY'] > 0) {
 	$ofdReceiptItem = new OfdReceiptItem();
-	$ofdReceiptItem->label = 'Доставка';
+	if (toUpper(LANG_CHARSET) == "WINDOWS-1251") {
+		$ofdReceiptItem->label = iconv('cp1251', 'utf-8', GetMessage('OFD_DELIVERY_DESCR'));
+	} else {
+		$ofdReceiptItem->label = GetMessage('OFD_DELIVERY_DESCR');
+	}
 	$ofdReceiptItem->amount = $arrOrder['PRICE_DELIVERY'];
 	$ofdReceiptItem->price = $arrOrder['PRICE_DELIVERY'];
 	$ofdReceiptItem->quantity = 1;
@@ -165,35 +205,31 @@ $arrRequest['pg_encoding'] = LANG_CHARSET;
 $arrRequest['cms_payment_module'] = 'BITRIX_'.LANG_CHARSET;
 $arrRequest['pg_sig'] = PlatronSignature::make('init_payment.php', $arrRequest, $strSecretKey);
 
-$initPaymentUrl = 'https://www.platron.ru/init_payment.php';
-$requestUrl = $initPaymentUrl . '?' . http_build_query($arrRequest);
-$response = file_get_contents($requestUrl);
-$responseElement = new SimpleXMLElement($response);
-if ($responseElement->pg_status != 'ok') {
-	throw new Exception('Error while create platron transaction: ' . $responseElement->pg_error_description);
+try {
+	$initPaymentResponse = doApiRequest('init_payment.php', $arrRequest, $strSecretKey);
+
+	if (CSalePaySystemAction::GetParamValue("OFD_SEND_RECEIPT") == 'Y') {
+
+		$paymentId = $initPaymentResponse->pg_payment_id;
+
+		$ofdReceiptRequest = new OfdReceiptRequest($nMerchantId, $paymentId);
+		$ofdReceiptRequest->items = $ofdReceiptItems;
+		$ofdReceiptRequest->prepare();
+		$ofdReceiptRequest->sign($strSecretKey);
+
+		$ofdReceiptResponse = doApiRequest('receipt.php', array('pg_xml'=>$ofdReceiptRequest->asXml()), $strSecretKey);
+	}
+} catch (Exception $e) {
+	AddMessage2Log($e->getMessage, 'platron');
+	//echo '<p class="errortext">' . GetMessage("PLATRON_CREATE_PAYMENT_FAILED"); . '</p>';
+	$errorMessage = GetMessage("PLATRON_ERROR_TRY_LATER");
 }
 
-if (CSalePaySystemAction::GetParamValue("OFD_SEND_RECEIPT") == 'Y') {
-
-	$paymentId = $responseElement->pg_payment_id;
-
-	$ofdReceiptRequest = new OfdReceiptRequest($nMerchantId, $paymentId);
-	$ofdReceiptRequest->items = $ofdReceiptItems;
-	$ofdReceiptRequest->prepare();
-	$ofdReceiptRequest->sign($strSecretKey);
-
-	$http = new \Bitrix\Main\Web\HttpClient();
-	$http->post('https://www.platron.ru/receipt.php', array('pg_xml'=>$ofdReceiptRequest->asXml()));
-	if ($http->getStatus() !== 200) {
-		throw new Exception('Bad http status from request to https://www.platron.ru/receipt.php: ' . $http->getStatus());
-	}
-
-	$ofdReceiptResponse = new SimpleXMLElement($http->getResult());
-	if ($ofdReceiptResponse->pg_status != 'ok') {
-		throw new Exception('Error while create platron receipt: ' . $ofdReceiptResponse->pg_error_description);
-	}
-
-}
-
-LocalRedirect($responseElement->pg_redirect_url, true);
-exit;
+?>
+<?php if (isset($errorMessage)): ?>
+	<p><font class="errortext"><?= $errorMessage ?></font></p>
+<?php else: ?>
+	<form method="post" action="<?= $initPaymentResponse->pg_redirect_url ?>">
+		<p><input name="BuyButton" value="<?= GetMessage("PLATRON_PAY_BUTTON") ?>" type="submit"></p>
+	</form>
+<?php endif; ?>
