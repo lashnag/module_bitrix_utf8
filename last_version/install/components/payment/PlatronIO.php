@@ -1,15 +1,16 @@
 <?php
 class PlatronIO {
 	public static function doApiRequest($scriptName, $params, $secretKey) {
-		$response = QueryGetData(
-			'www.platron.ru',
-			80,
-			'/' . $scriptName,
-			http_build_query($params),
-			$errorNumber,
-			$errorText,
-			'POST'
-		);
+		$ch = curl_init();
+
+		curl_setopt($ch, CURLOPT_URL,"https://www.platron.ru/" . $scriptName);
+		curl_setopt($ch, CURLOPT_POST, 1);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+		$response = curl_exec ($ch);
+
+		curl_close ($ch);
 
 		if (!$response) {
 			throw new Exception('Error while request to ' . $scriptName . ': ' . $errorNumber . ', ' . $errorText);
@@ -75,7 +76,7 @@ class PlatronIO {
 
 		header("Content-Type: text/xml");
 		header("Pragma: no-cache");
-		$strResponse = "<"."?xml version=\"1.0\" encoding=\"".LANG_CHARSET."\"?".">\n";
+		$strResponse = "<"."?xml version=\"1.0\" encoding=\"utf-8\"?".">\n";
 		$strResponse .= "<response>";
 			$strResponse .= "<pg_salt>".$arrResponse['pg_salt']."</pg_salt>";
 			$strResponse .= "<pg_status>".$arrResponse['pg_status']."</pg_status>";
