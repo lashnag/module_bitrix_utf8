@@ -119,7 +119,6 @@ $arrRequest['pg_description'] = 'Order ID: '.$nOrderId;
 $arrRequest['pg_user_phone'] = $strCustomerPhone;
 $arrRequest['pg_user_contact_email'] = $strCustomerEmail;
 $arrRequest['pg_user_email'] = $strCustomerEmail;
-//$arrRequest['pg_user_ip'] = $_SERVER['REMOTE_ADDR'];
 
 
 if(!empty($strSiteUrl))
@@ -175,6 +174,8 @@ $arrRequest['pg_sig'] = PlatronSignature::make('init_payment.php', $arrRequest, 
 
 try {
 	$initPaymentResponse = PlatronIO::doApiRequest('init_payment.php', $arrRequest, $strSecretKey);
+
+	CSaleOrder::Update($nOrderId, Array('PAY_VOUCHER_NUM' => (string) $initPaymentResponse->pg_payment_id, 'PAY_VOUCHER_DATE' => new \Bitrix\Main\Type\DateTime));
 
 	if (CSalePaySystemAction::GetParamValue("OFD_SEND_RECEIPT") == 'Y') {
 
